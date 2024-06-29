@@ -12,6 +12,30 @@ See [Vite Configuration Reference](https://vitejs.dev/config/).
 
 ## Project Setup
 
+Download the project
+Open VS Code
+Open the project folder
+
+## Server
+Open terminal in Vs code
+and type the command for running the server
+
+```sh
+cd server
+```
+```sh
+pnpm install
+```
+```sh
+node index.js
+```
+keep this terminal open for the server
+
+## UI
+For running the vue project
+Open another terminal
+Run the command (make sure pwd is the project not the server)
+
 ```sh
 pnpm install
 ```
@@ -20,10 +44,4 @@ pnpm install
 
 ```sh
 pnpm dev
-```
-
-### Compile and Minify for Production
-
-```sh
-pnpm build
 ```
