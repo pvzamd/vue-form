@@ -9,10 +9,8 @@ import { languages, cities } from "../constants/index";
 
 const { formatDate } = useDateUtils();
 
-const groups = ref([
-  { name: "", email: "", mobile: "" },
-  { name: "", email: "", mobile: "" },
-]);
+const groups = reactive([{ name: "", email: "", mobile: "" }]);
+const groupsError = reactive([{ name: "", email: "", mobile: "" }]);
 const birthdate = ref("");
 const gender = ref("");
 const selectedLanguages = ref([]);
@@ -21,17 +19,16 @@ const file = ref(null);
 const submittedData = ref(null);
 const fileInput = ref(null);
 
-const errorInForms = reactive({
-  errorGroup: false,
-  errorSubmit: false,
-});
+const errorInForms = ref(false);
 
 const addGroup = () => {
-  groups.value.push({ name: "", email: "", mobile: "" });
+  groups.push({ name: "", email: "", mobile: "" });
+  groupsError.push({ name: "", email: "", mobile: "" });
 };
 
 const removeGroup = (index) => {
-  groups.value.splice(index, 1);
+  groups.splice(index, 1);
+  groupsError.splice(index, 1);
 };
 
 const handleFileUpload = (event) => {
@@ -39,30 +36,80 @@ const handleFileUpload = (event) => {
 };
 
 const removeFile = (event) => {
-  errorInForms.errorSubmit = false;
+  errorInForms.value = false;
   file.value = null;
   if (fileInput.value) {
     fileInput.value.value = "";
   }
 };
 
-const isValidMobileFormat = (groups) => {
-  for (let group of groups) {
-    const adjustedRegex = /^\(\d{3}\)\s?\d{3}-\d{3}$/;
-    if (!adjustedRegex.test(group.mobile)) {
-      errorInForms.errorGroup = true;
-      return false;
-    }
+const removeError = (index, field) => {
+  groupsError[index][field] = "";
+};
+
+const validateField = (index, field) => {
+  if (groups[index][field].trim() === "") {
+    groupsError[index][field] = `${
+      field.charAt(0).toUpperCase() + field.slice(1)
+    } is required`;
+  } else if (field == "mobile" && groups[index][field].length != 14) {
+    groupsError[index][field] = `Enter 10 digits`;
+  } else {
+    groupsError[index][field] = "";
   }
-  errorInForms.errorGroup = false;
-  return true;
+};
+
+const formatPhone = (event, index) => {
+  groupsError[index]["mobile"] = "";
+  let value = event.target.value.replace(/\D/g, "");
+  if (value.length > 10) {
+    value = value.slice(0, 10);
+  }
+  value = value.replace(/(\d{0,3})(\d{0,3})(\d{0,4})/, (match, p1, p2, p3) => {
+    if (p2) {
+      return `(${p1}) ${p2}${p3 ? "-" + p3 : ""}`;
+    } else if (p1) {
+      return `(${p1}`;
+    }
+    return "";
+  });
+  groups[index].mobile = value;
+};
+
+const areAllFieldsEmpty = (data) => {
+  return data.every((item) => {
+    return Object.values(item).every((value) => value === "");
+  });
 };
 
 const handleSubmit = async () => {
-  if (!isValidMobileFormat(groups.value)) return;
-  errorInForms.errorSubmit = false;
+  errorInForms.value = false;
+  groups.forEach((group, index) => {
+    ["name", "email", "mobile"].forEach((field) => {
+      validateField(index, field);
+    });
+  });
+
+  if (!areAllFieldsEmpty(groupsError)) {
+    return;
+  }
+
+  if (birthdate.value == "") {
+    return;
+  }
+
+  if (gender.value == "") {
+    return;
+  }
+
   const payload = {
-    groups: groups.value,
+    groups: groups.map((e) => {
+      return {
+        name: e.name,
+        email: e.email,
+        mobile: e.mobile.replace(/\D/g, ""),
+      };
+    }),
     birthdate: formatDate(birthdate.value),
     gender: gender.value,
     languages: selectedLanguages.value,
@@ -103,18 +150,19 @@ const callApi = async (payload) => {
       submittedData.value = response.data;
       //will clear inputs after submit
       //clearForm();
-      errorInForms.errorSubmit = false;
+      errorInForms.value = false;
     } else {
-      errorInForms.errorSubmit = true;
+      errorInForms.value = true;
     }
   } catch (error) {
     console.error("API error:", error);
-    errorInForms.errorSubmit = true;
+    errorInForms.value = true;
   }
 };
 
 const clearForm = () => {
-  groups.value = [{ name: "", email: "", mobile: "" }];
+  groups = [{ name: "", email: "", mobile: "" }];
+  groupsError = [{ name: "", email: "", mobile: "" }];
   birthdate.value = "";
   gender.value = "";
   selectedLanguages.value = [];
@@ -146,8 +194,11 @@ const clearForm = () => {
                     class="form-control light-placeholder"
                     placeholder="John Doe"
                     v-model="group.name"
-                    required
+                    @input="removeError(index, 'name')"
                   />
+                  <span class="text-danger" v-if="groupsError[index].name">{{
+                    groupsError[index].name
+                  }}</span>
                 </div>
               </div>
               <div class="col-md-4">
@@ -162,8 +213,11 @@ const clearForm = () => {
                     class="form-control light-placeholder"
                     placeholder="abc@example.com"
                     v-model="group.email"
-                    required
+                    @input="removeError(index, 'email')"
                   />
+                  <span class="text-danger" v-if="groupsError[index].email">{{
+                    groupsError[index].email
+                  }}</span>
                 </div>
               </div>
               <div class="col-md-4">
@@ -172,14 +226,16 @@ const clearForm = () => {
                     >Mobile Number <span class="required-icon">*</span>
                   </label>
                   <input
-                    type="text"
+                    type="tel"
                     :id="'mobile' + index"
                     class="form-control light-placeholder"
                     v-model="group.mobile"
                     placeholder="(844) 448-0110"
-                    @input="errorInForms.errorGroup = false"
-                    required
+                    @input="formatPhone($event, index)"
                   />
+                  <span class="text-danger" v-if="groupsError[index].mobile">{{
+                    groupsError[index].mobile
+                  }}</span>
                 </div>
               </div>
               <div class="col-md-4">
@@ -187,16 +243,12 @@ const clearForm = () => {
                   type="button"
                   class="btn btn-danger mb-4"
                   @click="removeGroup(index)"
-                  v-if="groups.length > 2"
+                  v-if="groups.length > 1"
                 >
                   Remove
                 </button>
               </div>
             </div>
-          </div>
-          <div v-if="errorInForms.errorGroup" class="text-danger mb-3">
-            Incorrect mobile format please follow the format strictly (xxx)
-            xxx-xxx
           </div>
 
           <button type="button" class="btn btn-primary mb-4" @click="addGroup">
@@ -305,7 +357,7 @@ const clearForm = () => {
     <template v-if="submittedData">
       <TableComponent :tableDatas="submittedData" />
     </template>
-    <template v-if="errorInForms.errorSubmit">
+    <template v-if="errorInForms">
       <ErrorComponent />
     </template>
   </div>
